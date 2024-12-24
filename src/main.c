@@ -12,31 +12,61 @@ int main(int argc, char* argv[]) {
     }
     int* beginning = macho;
 
-    // load shellcode POC
-    macho += 9; // first load segment offset
-    int p0_size;
-    memcpy(&p0_size, macho, 4);
-    macho += p0_size / 4; // skip to next load segment
-    macho--;
-    macho += 18; // go to __text section
-    macho += 10; // go to code size
+    // important header info
+    struct mach_header_64 header;
+    header.magic = *(macho);
+    header.filetype = *(macho + 3);
+    header.ncmds = *(macho + 4);
+
+    macho += 8;
+    int* ret = macho;
+    int ls_size;
+    uint32_t main_off = 0;
+
+    // get offset of main function to begin execution
+    for (int i = 0; i < header.ncmds; i++) {
+        memcpy(&ls_size, macho + 1, 4);
+        if (*(macho) == LC_MAIN) {
+            memcpy(&main_off, macho + 2, 4);
+            break;
+        } else {
+            macho += ls_size / 4;
+        }
+
+    }
+
+    // __text
+    macho = ret;
+    memcpy(&ls_size, macho + 1, 4);
+    macho += ls_size / 4;
+
+    macho += 28;
     uint64_t sc_size;
-    memcpy(&sc_size, macho, 8); // set code size
-    macho += 2; // go to file offset of executable code
+    memcpy(&sc_size, macho, 8);
+
+    macho += 2;
     uint32_t off;
     memcpy(&off, macho, 4);
+    if (main_off == 0) {
+        main_off = off;
+    }
 
     void* mem_ptr = mmap(0, sc_size, PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANON | MAP_JIT, -1, 0);
     if (mem_ptr == MAP_FAILED) {
         perror("mmap");
     }
-    memcpy(mem_ptr, beginning + (off/4), sc_size); // map the executable code into memory
+    memcpy(mem_ptr, beginning + (off/4), sc_size);
     mprotect(mem_ptr, sc_size, PROT_READ | PROT_EXEC);
 
-    void (*func)() = mem_ptr;
-    func();
+    int (*func)() = mem_ptr;
+    uint32_t sub = main_off - off;
+    func += sub;
 
-    return 0;
+    int foo = func();
+
+    printf("back in main");
+
+    return foo;
 }
 
 //struct mach_header_64 {

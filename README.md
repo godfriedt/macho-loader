@@ -1,5 +1,5 @@
 # macho-loader
-work in progress macho loader written in C
+work in progress macho loader written in C. only works with macho files that do not include external libraries
 
 - https://blog.xpnsec.com/building-a-mach-o-memory-loader-part-1/
 - https://github.com/aidansteele/osx-abi-macho-file-format-reference
